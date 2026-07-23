@@ -344,6 +344,21 @@ describe('SessionManager', () => {
   // ─── Max Concurrent Sessions ────────────────────────────────────────
 
   describe('max concurrent sessions', () => {
+    it('counts distinct pending starts toward the limit', async () => {
+      const maxMgr = createManager({ maxConcurrentSessions: 2 });
+
+      const results = await Promise.allSettled(
+        ['s1', 's2', 's3', 's4'].map((name) => maxMgr.startSession({ name, cwd: '/tmp' })),
+      );
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(2);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(2);
+      expect(maxMgr.listSessions()).toHaveLength(2);
+      expect(mockSessions).toHaveLength(2);
+
+      await maxMgr.shutdown();
+    });
+
     it('throws when limit is reached', async () => {
       const maxMgr = createManager({ maxConcurrentSessions: 2 });
 

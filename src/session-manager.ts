@@ -565,6 +565,13 @@ export class SessionManager {
       return this._toSessionInfo(name, existing);
     }
 
+    // Reserve capacity before starting any async work. Distinct fanout/council
+    // names do not deduplicate, so counting only fully-started sessions lets a
+    // simultaneous batch observe the same stale size and overrun the limit.
+    if (this.sessions.size + this._pendingSessions.size >= this.pluginConfig.maxConcurrentSessions) {
+      throw new Error(`Max concurrent sessions (${this.pluginConfig.maxConcurrentSessions}) reached`);
+    }
+
     // Create the promise and register it in _pendingSessions BEFORE any async work,
     // so concurrent callers arriving between now and completion see the pending entry.
     const promise = this._doStartSession(name, config);
@@ -580,10 +587,6 @@ export class SessionManager {
     name: string,
     config: Partial<SessionConfig> & { name?: string },
   ): Promise<SessionInfo> {
-    if (this.sessions.size >= this.pluginConfig.maxConcurrentSessions) {
-      throw new Error(`Max concurrent sessions (${this.pluginConfig.maxConcurrentSessions}) reached`);
-    }
-
     // Auto-resume: if we have a persisted claudeSessionId for this name, inject it.
     // Skip when config.skipPersistence is set (e.g. openai-compat bridge sessions
     // that must NOT resume stale CLI state from a previous server run).
